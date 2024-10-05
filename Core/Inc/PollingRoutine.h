@@ -36,7 +36,7 @@ typedef struct
 {
 	uint32_t baudNew; // the baud rate received from user
 	uint32_t dummyData;
-	uint32_t baudPtr;
+	uint32_t baudPtr; // for baud rate lookup table
 }BaudRate_t;
 
 void PollingInit(void);
@@ -44,6 +44,7 @@ void PollingRoutine(void);
 
 void UART_Parse(UART_DMA_QueueStruct  *msg);
 void BaudSetCallback(void);
+void BaudRateChangeDelay(void);
 void BaudRateSet(uint32_t baud);
 void STM32_Ready(void);
 

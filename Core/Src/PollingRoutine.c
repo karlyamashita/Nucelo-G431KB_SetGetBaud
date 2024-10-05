@@ -39,18 +39,19 @@ UART_DMA_QueueStruct uart2_msg =
 	.tx.queueSize = UART_DMA_QUEUE_SIZE,
 };
 
-#define BAUD_SELECTION_SIZE 5
-uint32_t baudSelection[BAUD_SELECTION_SIZE] = {9600, 19200, 28800, 57600, 115200};
+#define BAUD_SELECTION_SIZE 7
+uint32_t baudSelection[BAUD_SELECTION_SIZE] = {9600, 14400, 19200, 28800, 57600, 115200, 230400};
 BaudRate_t uart2_baudRate = {0};
 uint32_t errorCode = 0;
 
-char notifyStr[64] = {0};
+char notifyStr[64] = {0}; // char array for messages sent to user.
 
 void PollingInit(void)
 {
 	UART_DMA_EnableRxInterrupt(&uart2_msg);
 
 	TimerCallbackRegisterOnly(&timerCallback, BaudSetCallback);
+	TimerCallbackRegisterOnly(&timerCallback, BaudRateChangeDelay);
 
 	STM32_Ready();
 }
@@ -107,6 +108,17 @@ void BaudSetCallback(void)
 }
 
 /*
+ * Description: Called from Timercallback. Changes baud rate lookup pointer after HAL UART error are taken care of.
+ */
+void BaudRateChangeDelay(void)
+{
+	if(++uart2_baudRate.baudPtr == BAUD_SELECTION_SIZE)
+	{
+		uart2_baudRate.baudPtr = 0;
+	}
+}
+
+/*
  * Description: DeInit UART before Initializing with new baud.
  *
  */
@@ -158,23 +170,20 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 
 /*
  * Description: This is probably called due to framing error cause by mismatched baud rate
- * 				between the STM32 and device sending data. Calling SetBaudRate will reset the UART peripheral
- * 				and use the last working baud rate
+ * 				between the STM32 and device sending data. We will use a lookup table to try different baud rates.
+ * 				Because this could get called multiple times from 1 message, the lookup pointer gets incremented n amount of times.
+ * 				To fix this, a timercallback is used to change the index pointer after 100ms, after which the errors should be cleared by then.
+ *
  */
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
-
-
 	if(huart == uart2_msg.huart)
 	{
 		errorCode = HAL_UART_GetError(huart);
 		if(errorCode == USART_ISR_FE || USART_ISR_NE) // two most common errors due to baud mismatch. Framing and Noise errors.
 		{
 			BaudRateSet(baudSelection[uart2_baudRate.baudPtr]); // try new baud rate
-			if(++uart2_baudRate.baudPtr == BAUD_SELECTION_SIZE)
-			{
-				uart2_baudRate.baudPtr = 0;
-			}
+			TimerCallbackTimerStart(&timerCallback, BaudRateChangeDelay, 100, TIMER_NO_REPEAT);
 		}
 	}
 }
