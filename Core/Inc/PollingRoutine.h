@@ -35,8 +35,8 @@
 typedef struct
 {
 	uint32_t baudNew; // the baud rate received from user
-	uint32_t baudLast; // the last baud rate before UARTx baud rate was updated. In case of errors, we can revert back.
 	uint32_t dummyData;
+	uint32_t baudPtr;
 }BaudRate_t;
 
 void PollingInit(void);
@@ -45,7 +45,6 @@ void PollingRoutine(void);
 void UART_Parse(UART_DMA_QueueStruct  *msg);
 void BaudSetCallback(void);
 void BaudRateSet(uint32_t baud);
-void BaudRateInit(BaudRate_t *baudInstance, uint32_t baud);
 void STM32_Ready(void);
 
 

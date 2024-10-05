@@ -39,7 +39,10 @@ UART_DMA_QueueStruct uart2_msg =
 	.tx.queueSize = UART_DMA_QUEUE_SIZE,
 };
 
+#define BAUD_SELECTION_SIZE 5
+uint32_t baudSelection[BAUD_SELECTION_SIZE] = {9600, 19200, 28800, 57600, 115200};
 BaudRate_t uart2_baudRate = {0};
+uint32_t errorCode = 0;
 
 char notifyStr[64] = {0};
 
@@ -48,8 +51,6 @@ void PollingInit(void)
 	UART_DMA_EnableRxInterrupt(&uart2_msg);
 
 	TimerCallbackRegisterOnly(&timerCallback, BaudSetCallback);
-
-	BaudRateInit(&uart2_baudRate, uart2_msg.huart->Init.BaudRate);
 
 	STM32_Ready();
 }
@@ -113,7 +114,6 @@ void BaudRateSet(uint32_t baud)
 {
 	if(HAL_UART_DeInit(uart2_msg.huart) == HAL_OK)
 	{
-		uart2_baudRate.baudLast = uart2_msg.huart->Init.BaudRate;
 		uart2_msg.huart->Init.BaudRate = baud;
 		if (HAL_UART_Init(uart2_msg.huart) == HAL_OK)
 		{
@@ -128,14 +128,6 @@ void BaudRateSet(uint32_t baud)
 	{
 		Error_Handler();
 	}
-}
-
-/*
- * Description: Init baudLast with current baud rate
- */
-void BaudRateInit(BaudRate_t *baudInstance, uint32_t baud)
-{
-	baudInstance->baudLast = baud;
 }
 
 void STM32_Ready(void)
@@ -171,14 +163,18 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
  */
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
-	uint32_t errorCode = 0;
+
 
 	if(huart == uart2_msg.huart)
 	{
 		errorCode = HAL_UART_GetError(huart);
 		if(errorCode == USART_ISR_FE || USART_ISR_NE) // two most common errors due to baud mismatch. Framing and Noise errors.
 		{
-			BaudRateSet(uart2_baudRate.baudLast); // use last baud rate
+			BaudRateSet(baudSelection[uart2_baudRate.baudPtr]); // try new baud rate
+			if(++uart2_baudRate.baudPtr == BAUD_SELECTION_SIZE)
+			{
+				uart2_baudRate.baudPtr = 0;
+			}
 		}
 	}
 }
